@@ -1,0 +1,238 @@
+CS130 Project 3 - Design Document
+=================================
+
+Please answer all questions in this design document.  Note that the final
+feedback section is optional, and you are not required to answer it if you
+don't want to.
+
+Unanswered or incompletely answered questions, or answers that don't actually
+match the code/repository, will result in deductions.
+
+Answers don't have to be deeply detailed!  We are mainly looking for an
+overview or summary description of how your project works, and your team's
+experiences working on this project.
+
+Logistics (7 pts)
+-----------------
+
+L1.  [2pts] Enumerate all teammates here.
+
+Esmir Mesic
+Jonathon Corrales
+Anya Vinogradsky
+
+L2.  [2pts] What did each teammate focus on during this project?
+
+Esmir focused on making the renamehandler, reconstructor, changing parsing to
+handle absolute references, researching lalr, and refactoring renamesheet
+
+Jonathon focused on the new reference class and refactoring our reference
+handling throughout the project
+
+Anya focused on implementing move/copy cell and writing all the tests for
+those functions
+
+All of us did bugfixing.
+
+L3.  [3pts] Approximately how many hours did each teammate spend on the project?
+Esmir - 17?
+Jon - 11?
+Anya - 28
+
+Spreadsheet Engine Design (10 pts)
+----------------------------------
+
+D1.  [3pts] Moving and copying regions of a sheet are very similar operations,
+     with only a few differences between them.  How did your team take advantage
+     of the similarity of these two operations to reduce the amount of code
+     required to provide this functionality?
+     
+     We created a helper function __move_copy_cell that is called from move and copy.
+     This function takes a boolean flag (is_move) to indicate whether it is being
+     called from a move or a copy. 
+
+     If is_move is true, then the function is performing a move meaning that it will
+     modify the original cell's parse tree (no need to make a copy) and delete all
+     the original cells before the move.
+
+     If is_move is false, then the function is performing a copy meaning that it will
+     copy the original cell and modify the copy's parse tree. It will not delete 
+     the original cells before the new cells are set.
+
+
+D2.  [3pts] Similarly, moving/copying regions of a sheet, and renaming a sheet,
+     both involve formula updates.  Was your team able to factor out common
+     aspects of these two operations to reduce the amount of code required to
+     implement these operations?  If so, what did you do?  If not, why not?
+     
+     We created a rename handler, which goes through a cell's parse tree
+     and can edit either sheet references, cell references, or both.
+     We then made a reconstructor that takes the parse tree and creates a
+     new content string from the edited parse tree. We should make a helper
+     function to do this for us in the future, but for now we have calls to both
+     the rename handler and the reconstructor in both functions. 
+
+
+D3.  [4pts] How does your implementation address the challenges of moving or
+     copying a region of cells where the source and target regions overlap?
+
+     Currently, our function finds the source area, checks that the target
+     area is inbounds, then loops through all the cells in the source area
+     to create a list of new cells and a list of cells to delete. If a
+     move is being performed, the cells in the delete list will be overwritten
+     with "" to set their value to None. Otherwise, the function will loop
+     through the list of new cells and set the new values appropriately.
+
+     This ordering where we loop through the source area once or twice (once 
+     to make new cells and once to delete on move) and then we set the new cells 
+     prevents issues with moving or copying a region of cells where the source
+     and target regions overlap since the new cells are all created before the
+     source area is modified in any way.
+
+
+Static Code Analysis / Code Linting (10pts)
+-------------------------------------------
+
+L1.  [3pts] What code linter did your team use on your project?  Was this the
+     first CS130 project in which you used a linter?
+
+     We had been using flake8 as our main linter before this project. This 
+     project, we are using both flake8 and pylint.
+
+
+L2.  [3pts] How did you automate the execution of your code linter?  Did
+     everyone in your team find it easy to run?
+
+     We have a makefile that runs the linter. 
+     
+     Esmir cannot run makefiles on his machine (he's on windows), so we 
+     could also make a batch file for him, but he found a way to run the
+     linter on saving through VS Code and just does that.
+
+
+L3.  [4pts] Did the use of the linter improve your overall code quality and
+     correctness?  Give some specific details in your answer.  Were there any
+     serious issues you were previously unaware of?
+
+     It did improve our code quality as things are much more standardized. We
+     were forced to rename some of our variables and change our indexing in
+     for loops to values we set up as acceptable --good-names. We were also
+     pushed to specify our exception handling (instead of doing 
+     "except Exception as e"). There are also some antipatterns we had in our
+     code that we did not catch before. 
+     
+     One bug that the linter caught which could have caused major problems down 
+     the road was we had a section of code similar to the following:
+
+          for ii in range(0, 10):
+               # something is done here
+
+          arr[ii] = "Something"
+
+     The linter did not like that we used the ii variable outside the scope
+     of the loop so we fixed that.
+
+
+Performance Improvement (23 pts)
+--------------------------------
+
+In this project you must improve the performance of two central areas of your
+spreadsheet engine - cell updating and cycle detection.  In the previous project
+your team should have written some performance-testing code in preparation for
+this effort, and should have run it under a profiler to get an initial sense of
+where improvements can be made.  In this project you need to follow through on
+this setup, and address performance issues in your code.
+
+P1.  [9pts] Give a brief overview of 3-4 of the worst hot-spots you identified
+     in your performance testing and analysis.  For each one, describe how your
+     team was able to resolve it.
+
+     We noticed that cell updating was very slow for a number of reasons
+
+     THe first is parsing. We used to parse the contents every time we did
+     anything to a cell, even just updating an existing one, which was very slow
+     because parsing is very slow! We changed our cell class to cache parse 
+     trees and we handle the cached parse trees whenever we can instead of
+     reparsing. 
+
+     The next is hashing/splitting/string functions for references. 
+     These were no where near the time sink of parsing, but it was still being
+     done so much, specifically with respect to handling references. We used
+     to pass around strings of the following format: "SHEET_NAME!CELL_LOC" 
+     to say what cell was being located, but dealing with this required a lot of
+     .split() and unncessary hashing. We created a new references class that
+     acts sort of like a tuple with some helper functions to make our lives
+     easier. We changed the way references was implemented throughout the
+     project using the new class. This did not speed much up, but it does make 
+     the code much more readable and understandable than before.
+
+     The next is handling renaming. We noticed rename was still the slowest test
+     so we thought it was because we were iterating through the contents to
+     change it directly, which could be slow. We created a lark visitor that
+     goes through and edits a cell's cached parse tree to whatever new
+     sheet or cell reference we want, then we created another visitor that 
+     reconstructs the content string from a parse tree. Using the editor and 
+     reconstructor, we refactored rename, but this again did not speed much up.
+     It does, like the last hot spot, make our code much more readable and
+     understandable, though.
+
+     THe last hot spot is still parsing. Even though we don't parse nearly as
+     much now, it is still slower than it could be. We are looking into
+     changing our lark grammar and parser into a lalr parser instead of earley,
+     but this is much more challenging than expected so we will try to instead
+     implement this for the next project.
+
+
+P2.  [6pts] Did your team try anything to address performance issues and find
+     that it didn't improve things at all?  If so, were you able to identify why
+     the intended fix didn't produce the desired benefit?
+
+     We describe this above, but the reference class and the
+     rename handler/reconstructor did not make the performance much better.
+     The test times did not change much because these new methods have some
+     inefficiencies within them that overall made it have a negligible effect
+     on the performance. It does, however, make the code nicer!
+
+
+P3.  [4pts] How do you feel that your performance updates affected your code's
+     readability and maintainability?  Elaborate on your answer.
+
+     We elaborate on this extensively above, but when we tried to
+     make the rename handler/reconstructor and reference classes, we did not
+     get a significant performance boost, but our code is much more readable
+     and maintainability as a result.
+
+
+P4.  [4pts] Did your performance updates cause any regressions in functionality?
+     If so, briefly describe any issues that emerged.  How were these issues
+     identified (e.g. automated test failures, manual testing, etc.)?  How
+     quickly were issues identified?
+
+     These did not create any major regressions in functionality. It was mainly
+     a reworking of the existing way we did things. Any bugs that came up were 
+     from our automated testing, and we were quickly able to squash them.
+
+
+Section F:  CS130 Project 3 Feedback [OPTIONAL]
+-----------------------------------------------
+
+These questions are OPTIONAL, and you do not need to answer them.  Your grade
+will not be affected by answering or not answering them.  Also, your grade will
+not be affected by negative feedback - we want to know what went poorly so that
+we can improve future versions of the course.
+
+F1.  What parts of the assignment did you find highly enjoyable?  Conversely,
+     what parts of the assignment did you find unenjoyable?
+
+
+F2.  What parts of the assignment helped you learn more about software
+     engineering best-practices, or other useful development skills?
+     What parts were not helpful in learning these skills?
+
+
+F3.  Were there any parts of the assignment that seemed _unnecessarily_ tedious?
+     (Some parts of software development are always tedious, of course.)
+
+
+F4.  Do you have any feedback and/or constructive criticism about how this
+     project can be made better in future iterations of CS130?

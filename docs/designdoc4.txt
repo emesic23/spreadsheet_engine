@@ -1,0 +1,216 @@
+CS130 Project 4 - Design Document
+=================================
+
+Please answer all questions in this design document.  Note that the final
+feedback section is optional, and you are not required to answer it if you
+don't want to.
+
+Unanswered or incompletely answered questions, or answers that don't actually
+match the code/repository, will result in deductions.
+
+Answers don't have to be deeply detailed!  We are mainly looking for an
+overview or summary description of how your project works, and your team's
+experiences working on this project.
+
+Logistics (7 pts)
+-----------------
+
+L1.  [2pts] Enumerate all teammates here.
+
+     Esmir Mesic
+     Jonathon Corrales
+     Anya Vinogradsky
+
+L2.  [2pts] What did each teammate focus on during this project?
+
+     Anya focused on creating stress tests, analyzing performance,
+     and debugging errors from earlier projects. She also worked on
+     fixing various linter errors we've been disabling.
+
+     Esmir focused on the function handling implementation and Boolean
+     type handling alongside Jon.
+
+     Jon focused on the comparison handling and the Boolean type handling 
+     alongside Esmir. 
+
+L3.  [3pts] Approximately how many hours did each teammate spend on the project?
+     Esmir - 10
+     Jon - 10
+     Anya - 19
+
+
+Spreadsheet Engine Design (27 pts)
+----------------------------------
+
+D1.  [4pts] Briefly describe the changes you made to the Lark parser grammar to
+     support Boolean literals and conditional expressions.  How did you ensure
+     that conditional expressions are lower precedence than arithmetic and
+     string concatenation operations?
+
+     We added a terminal in the grammar that matches true and false case
+     insensitively to create the boolean type. For functions, we added
+     a terminal that matches a-z as a function type. We then extended
+     the base rule in the grammar to match a function type with parenthesis
+     and parameters. This ensures the precedence is correct.
+
+
+D2.  [5pts] Briefly describe how function invocation works in your spreadsheet
+     engine.  How easy or hard would it be for you to add new functions to your
+     engine?  What about a third-party developer?  How well does your code
+     follow the Open/Closed Principle?
+     
+     In the grammar, a function rule is one with a function name, parenthesis,
+     and any number of parameters. These parameters are part of a parameters
+     rule in the grammar. We extended out expression handler to work with
+     these new rules. When the handler reaches a function, it evaluates
+     the left and right side of the tree. The left side is the function name,
+     while the right side is a list of parameters. We simplify these
+     parameters as far as we can with the handler, so after visit_children 
+     the parameters array has all the parameters ready for us to use. 
+     It's very easy to add new functions, as it is just adding another match
+     case to our function rule handling. By that logic, if a third party 
+     developer were to modify the code to add a new function, it would be 
+     very simple to do so. I do not think this code follows the open/closed
+     principle that well.
+
+
+D3.  [5pts] Is your implementation able to lazily evaluate the arguments to
+     functions like IF(), CHOOSE() and IFERROR()?  (Recall from the Project 4
+     spec that your spreadsheet engine should not report cycles in cases where
+     an argument to these functions does not need to be evaluated.)  If so,
+     what changes to your design were required to achieve this?  If not, what
+     prevented your team from implementing this?
+     
+     Our implementation is not able to lazily evaluate the arguments to those
+     specific functions because our visitor evaluates all the children in a tree
+     so getting the value of some condition would require evaluating the other
+     parameters as well. Making the necessary changes to allow for lazy evaluation
+     would require a significant change in how we visit the children of a tree,
+     and unfortunately we weren't able to allocate time to such a change. 
+
+
+D4.  [5pts] Is your implementation able to evaluate the ISERROR() function
+     correctly, with respect to circular-reference errors?  (Recall from the
+     Project 4 spec that ISERROR() behaves differently when part of a cycle,
+     vs. being outside the cycle and referencing some cell in the cycle.)
+     If so, what changes to your design were required to achieve this?  If
+     not, what prevented your team from implementing this?
+
+     Yes, we needed to extend our lark visitor that collects references
+     to collect references from functions rather than just a cell type. 
+
+
+D5.  [5pts] Is your implementation able to successfully identify cycles that
+     are not evident from static analysis of formulas containing INDIRECT()?
+     If so, what changes to your design were required, if any, to achieve this?
+     If not, what prevented your team from implementing this?
+
+     Yes, we extended our lark visitor that collects references to collect
+     references from functions, so the rest of the code in set_cell_contents
+     could detect cycles like it has been. This fix added functionality
+     for other reference related things with functions. 
+
+
+D6.  [3pts] Project 4 has a number of small but important operations to
+     implement:  Comparison operations include a number of comparison and type
+     conversion rules.  Different functions may require specific numbers and
+     types of arguments.  How did your team structure the implementation of
+     these operations?  How did your approach affect the reusability and
+     testability of these operations?
+
+     We made a function that converts arguments into booleans if possible
+     and throws errors when it is not possible. We then also made a comparator
+     that handles the comparisons. This conversion util function was a very
+     important function to have for this project as we used it in a lot
+     of other places, namely the logic functions we implemented. 
+
+
+Performance Analysis (16 pts)
+-----------------------------
+
+In this project you must measure and analyze the performance of features that
+generate large bulk changes to a workbook:  loading a workbook, copying or
+renaming a sheet, and moving or copying an area of cells.  Construct some
+performance tests to exercise these aspects of your engine, and use a profiler
+to identify where your program is spending the bulk of its time.
+
+A1.  [4pts] Briefly enumerate the performance tests you created to exercise
+     your implementation.
+
+     We wrote the following tests:
+          - testLargeLoad - This test loads a JSON with 6000+ cells
+          - testCopySheet - This test copies a sheet with the large JSON
+                            loaded into it
+          - testRenameSheet - This test renames a sheet that is referenced
+                              by 6000+ cells
+          - testMoveBlankCellArea - This test moves around 70,000 blank cells
+          - testMoveCellArea - This test moves around 70,000 cells that may be
+                               filled with expressions that do not have mixed 
+                               or absolute references
+          - testMoveCellAreaWithRefs - This test moves around 70,000 cells that may be
+                                   filled with expressions that have mixed 
+                                   or absolute references
+          - testCopyBlankCellArea - This test copies around 70,000 blank cells
+          - testCopyCellArea - This test copies around 70,000 cells that may be
+                               filled with expressions that do not have mixed 
+                               or absolute references
+          - testCopyCellAreaWithRefs - This test copies around 70,000 cells that may be
+                                   filled with expressions that have mixed 
+                                   or absolute references
+
+
+A2.  [4pts] What profiler did you choose to run your performance tests with?
+     Why?  Give an example of how to invoke one of your tests with the profiler.
+
+     We used the same profiler as last time. We call the 
+     profiler constructor, we enable the profiler with self.profiler.enable()
+     and when we want to get results we do:
+     
+          p = Stats(self.profiler)
+          p.strip_dirs().dump_stats(filename)
+     
+     giving a filename to dump the stats into. We can then visualize the dump
+     with a library called snakeviz.
+
+A3.  [8pts] What are ~3 of the most significant hot-spots you identified in your
+     performance testing?  Did you expect these hot-spots, or were they
+     surprising to you?
+     
+     1. Iterating through the source target area on copies and moves
+          We expected this to be a hot spot and will need to look into
+          how we can move/copy faster by disregarding cells that do not
+          need to be reparsed (i.e. values or blank cells) sooner. 
+     2. Iterating through the target area on copies and moves
+          We expected this to be a hot spot and will need to look into
+          how we can move/copy faster by ignoring cells that don't
+          need to be overwritten (e.g. blank cells that aren't overwritting
+          anything)
+     3. Parsing on copies and moves
+          Reparsing cell contents is taking a significant amount of time
+          on copies and moves even though we don't always need to reparse
+          the cell contents to get the value. We also expected this hot spot.
+
+
+Section F:  CS130 Project 3 Feedback [OPTIONAL]
+-----------------------------------------------
+
+These questions are OPTIONAL, and you do not need to answer them.  Your grade
+will not be affected by answering or not answering them.  Also, your grade will
+not be affected by negative feedback - we want to know what went poorly so that
+we can improve future versions of the course.
+
+F1.  What parts of the assignment did you find highly enjoyable?  Conversely,
+     what parts of the assignment did you find unenjoyable?
+
+
+F2.  What parts of the assignment helped you learn more about software
+     engineering best-practices, or other useful development skills?
+     What parts were not helpful in learning these skills?
+
+
+F3.  Were there any parts of the assignment that seemed _unnecessarily_ tedious?
+     (Some parts of software development are always tedious, of course.)
+
+
+F4.  Do you have any feedback and/or constructive criticism about how this
+     project can be made better in future iterations of CS130?

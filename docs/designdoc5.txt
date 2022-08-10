@@ -1,0 +1,213 @@
+CS130 Project 5 - Design Document
+=================================
+
+Please answer all questions in this design document.  Note that the final
+feedback section is optional, and you are not required to answer it if you
+don't want to.
+
+Unanswered or incompletely answered questions, or answers that don't actually
+match the code/repository, will result in deductions.
+
+Answers don't have to be deeply detailed!  We are mainly looking for an
+overview or summary description of how your project works, and your team's
+experiences working on this project.
+
+Logistics (7 points)
+--------------------
+
+L1.  [2pts] Enumerate all teammates here.
+Esmir Mesic
+Jonathon Corrales
+Anya Vinogradsky
+
+
+L2.  [2pts] What did each teammate focus on during this project?
+Esmir focused on parser updates and new functions as well as 
+updating old functions
+Jon focused on range handling and testing/bugfixing
+Anya focused on sorting, performance improvement, cell notifications,
+debugging, and cleaning our codebase
+
+
+L3.  [3pts] Approximately how many hours did each teammate spend on the project?
+Esmir - 12
+Jon - 11
+Anya - 10
+
+Spreadsheet Engine Design (27 points)
+-------------------------------------
+
+D1.  [4pts] Briefly describe the changes you made to the Lark parser grammar to
+     support cell-range references.  Can they appear anywhere in expressions, or
+     does your grammar constrain them to appear only in particluar contexts?
+     
+     We have ranges in the grammar as a base type so that they are easily
+     integrable into functions. They can appear anywhere.
+
+
+D2.  [4pts] How easy or hard was it to incorporate cell-range references into
+     formula evaluation?  Elaborate on your answer.
+
+     It was pretty ok to incorporate cell range references into formula
+     evaluation. We basically treat it as its own rule to handle in
+     the expression handler, then build out an array of lark trees that are
+     made from scratch and not parsing (to make it faster). THen we call 
+     the expressionhandler visiter to populate a 2d array of values that
+     we return as the evaluated range call.
+
+
+D3.  [4pts] How did you incorporate cell-range references into the cycle-
+     detection functionality of your project?  Explain why you chose this design
+     over other possible designs; for example, what benefits were you hoping to
+     achieve, or what issues were you trying to avoid?
+
+     We have a reference getter lark visitor that collects all cell references.
+     To do this, we need to add certain rules for certain tricky parts of the
+     grammar, and ranges is one of them. Instead of returning the
+     evaluated 2d array, we do the same process with all the cells referenced
+     in the range call, but just call the reference getter visitor on each
+     tree in the 2d array of cell trees, which populates the reference table
+     in a similar way it would for any other cell reference. This integrates
+     very easily into our cycle detection and reference protocol.
+
+
+D4.  [4pts] Give an overview of the structural aspects (modules, classes, etc.)
+     of how you implemented sorting.  Do you sort the rows directly?  Do you
+     use proxy objects instead?  Some other technique?
+     
+     We created a SortingCell class which contained cell location and the Cell object
+     and a SortingCellRow class which held an array of SortingCells, the columns to
+     sort on, and was responsible for calling the appropriate cell comparisons. The
+     SortingCellRow class comparisons combining the results of the comparisons that
+     SortingCell returned and dealt with ascending/descending sorting.
+
+     The sorting function gets the source area, breaks it down into an array of 
+     rows of cells stored as SortingCells in SortingCellRows, then calls sorted on
+     the rows array to sort everything. The sorted array is then broken down into
+     individual cells which are appropriately set back into the original source area.
+
+
+D5.  [4pts] Give an overview of the behavioral aspects of how you implemented
+     sorting.  At a high level, enumerate the steps that your engine goes
+     through to sort a region of a spreadsheet.
+
+     We get the source area as a list of cell locations. The source area is 
+     enumerated over, creating a SortingCellRow for every row of cells. The 
+     SortingCellRows are stored in a rows array. We call sorted on the rows array.
+     Our custom sort operation in SortingCellRows and SortingCells properly 
+     sort each row. The SortingCell comparisons tell us how each cell relates to
+     another. The SortingCellRow comparisons call each column in sort_cols in
+     order until it find a column where the cells are different and orders the rows
+     based off of that. If all columns match, then the rows are sorted in the 
+     original order. Finally, we do something similar to move copy to create all the
+     new cells we need to set, then iterate through the new cells and set them.
+
+D6.  [4pts] How does your implementation solve the problem of supporting the
+     user-specified row ordering based on both the columns and the ordering to
+     sort by?  Did you create any classes or functions to help specifically with
+     this task?
+
+     We used custom sort functions as described above, iterating through all the 
+     user specified rows and returning the negated comparison if the user specified
+     descending.
+
+D7.  [3pts] Briefly describe the changes you made to your spreadsheet engine to
+     satisfy the stricter cell-change notification behaviors.  Did you find this
+     to be largely straightforward to change?  Why or why not?
+
+     Before publishing cell notifications, we pull the list of the cells we updated
+     into a set. This removes all duplicates. Then we convert the set back into
+     a list and send it to the notifier. 
+
+
+Performance Improvement (16 pts)
+--------------------------------
+
+In this project you must improve the performance of operations that involve
+bulk updating of cell formulas and/or values.  In the previous project your
+team should have written some performance-testing code in preparation for this
+effort, and should have run it under a profiler to get an initial sense of
+where improvements can be made.  In this project you need to follow through on
+this setup, and address performance issues in your code.
+
+P1.  [6pts] Give a brief overview of 2-3 of the worst hot-spots you identified
+     in your performance testing and analysis.  For each one, describe how your
+     team was able to resolve it.
+
+     One hot spot was cycle detection. We are running Kosaraju's algorithm
+     instead of Tarjan's algorithm. Both are O(V+E), but Kosaraju has a 
+     2 coefficient because we run the loop twice effectively. If we switch
+     to Tarjan's algorithm our cycle detection and thus cell updating would be
+     faster. 
+
+     Another hot spot was rename sheet. The code is slow because we have to
+     iterate through our references to find references that need to be fixed
+     from a rename, but since we have global references, this can cause
+     a very large loop to happen resulting in a large time sink.
+     Fixes for this would mean making references on a per-sheet basis instead
+     of global, but we were not able to get to this in time.
+    
+     Our move/copy cells function was doing very well in comparison to the
+     reference solution already. To make the code very slightly faster, we
+     made a change that allowed us to skip a few lines of logic in figuring
+     out the new cells contents if the cell was blank.
+
+P2.  [4pts] Did your team try anything to address performance issues and find
+     that it didn't improve things at all?  If so, were you able to identify why
+     the intended fix didn't produce the desired benefit?
+
+     We tried to implement Tarjan's algorithm but because of the way we store
+     the graph structure, it does not work. To implement Tarjan's in our project
+     we would have to do a massive overhaul that we just don't have time for in
+     this quarter.
+
+     We did the move/copy improvements as described above. It really helped
+     our stress tests, improving each one by 20-60 seconds.
+
+P3.  [3pts] How do you feel that your performance updates affected your code's
+     readability and maintainability?  Elaborate on your answer.
+
+     For Cycle detection, the update was not able to be performed, but it
+     would not have made that much of a difference on readability and
+     maintainability.
+
+     The changes for move/copy are well commented and make sense so they
+     seem readable. The changes are inside just one helper function so they
+     also seem maintainable.
+
+P4.  [3pts] Did your performance updates cause any regressions in functionality?
+     If so, briefly describe any issues that emerged.  How were these issues
+     identified (e.g. automated test failures, manual testing, etc.)?  How
+     quickly were issues identified?
+
+     Issues emerged when we tried running Tarjan's algorithm instead of 
+     Kosaraju, in that it was not properly detecting the cycle because of our
+     cell references implementation. We found this through automated test
+     failures and manual testing immediately. 
+
+     No for the move/copy changes.
+
+
+Section F:  CS130 Project 4 Feedback [OPTIONAL]
+-----------------------------------------------
+
+These questions are OPTIONAL, and you do not need to answer them.  Your grade
+will not be affected by answering or not answering them.  Also, your grade will
+not be affected by negative feedback - we want to know what went poorly so that
+we can improve future versions of the course.
+
+F1.  What parts of the assignment did you find highly enjoyable?  Conversely,
+     what parts of the assignment did you find unenjoyable?
+
+
+F2.  What parts of the assignment helped you learn more about software
+     engineering best-practices, or other useful development skills?
+     What parts were not helpful in learning these skills?
+
+
+F3.  Were there any parts of the assignment that seemed _unnecessarily_ tedious?
+     (Some parts of software development are always tedious, of course.)
+
+
+F4.  Do you have any feedback and/or constructive criticism about how this
+     project can be made better in future iterations of CS130?

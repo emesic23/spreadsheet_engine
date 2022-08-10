@@ -1,0 +1,52 @@
+This document contains a log of our performance handler. 
+
+Theory - We think update-cell is slow
+Rationale - The profiler on a test that sets cell contents ~200 times  with
+many references took 30 seconds to complete and the profiler showed that ~29 
+of those 30 seconds was the earley parser.
+Outcome - We changed our cell class to cache parse_trees and not have to 
+reparse the contents every time we update. This made this test take a fraction
+of the time it used to, and our whole stress-test suite takes ~5-6 seconds to
+run instead of over a minute now.
+
+Theory - Update-cell is slow
+Rationale - After caching parse trees, the other main time sink was hashing
+and splitting, which don't take much time by themselves but we did it so often
+Outcome - We changed the way we handle cell references into their own object
+that effectively acts like a tuple to store any info we might need about cell
+references. This did not speed up our tests by that much, but it does make the
+code a bit cleaner and easier to work with.
+
+Theory - Rename is slow
+Rationale - Even after caching parse trees, the rename stress test is still the
+largest time sink.
+Outcome - We changed our rename handling contents to not directly change the
+contents by iteration, rather, we edit the cached parse tree directly and
+reconstruct the content from it to "rename" the referenced sheets in the
+formulas. This also was not a significant change to our performance, but it
+is much cleaner in implementation.
+
+Theory - Parsing is slow
+Rationale - Parsing is not happening a lot, but it could be faster!
+Outcome - We are looking into changing our grammer and parsing structure to work
+with a lalr parser instead of earley, which would provide a 2-3x speed boost on
+parsing. This change should come with next release.
+
+Theory - Rename is slow
+Rationale - Even after the reconstruction change, rename is slow. THis is 
+likely due to having to search through a large references list for the
+right sheet being referenced to rename the contents. 
+Outcome - We would need to make a large structural change by making cell
+references on a per sheet basis instead of being a global workbook variable.
+That way, we can easily know which cells need to be renamed. We were not
+able to get this ready in time for project 5 but would have been our next
+point of attack.
+
+Theory - Cycle Detection is slow
+Rationale - updating with large cell reference loops is slow. This is
+likely due to having to loop through large references twice because of
+Kosaraju's algorithm being effectively O(2(V+E)).
+Outcome - We tried implementing Tarjan's algorithm, which eliminates the
+coefficient in the runtime complexity, but because of the way our cell refs
+are implemented, this is not that feasible and other performance updates
+would need to be thought of.
